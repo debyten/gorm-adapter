@@ -21,7 +21,7 @@ type Instance struct {
 }
 
 // New creates a new database Instance with a connection and optional migrator based on the provided configuration.
-func New(ctx context.Context, cfg Configuration) (*Instance, error) {
+func New(ctx context.Context, cfg *Configuration) (*Instance, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
