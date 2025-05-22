@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/debyten/apierr v0.2.2
-	github.com/debyten/database v0.0.0-20250522221759-fc75dd86729e
+	github.com/debyten/database v0.0.0-20250522223530-4e7771e834bc
 	github.com/gobeam/stringy v0.0.7
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/uuid v1.6.0
