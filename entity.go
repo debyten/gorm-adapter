@@ -1,4 +1,4 @@
-package gormdb
+package gormadapter
 
 import (
 	"errors"
