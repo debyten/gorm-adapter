@@ -40,16 +40,11 @@ func New(ctx context.Context, cfg Configuration) (*Instance, error) {
 		return nil, err
 	}
 	conn := NewConn(dbInstance)
-	var m *migrate.Migrate
-	if cfg.migrateDriver != nil && cfg.migrationsFS != nil {
-		m, err = database.NewMigrator(cfg.migrationsFS, cfg.migrateDriver, cfg.dataSource.GetUpgradePath(), false)
-		if err != nil {
-			_ = conn.Close()
-			return nil, err
-		}
+	if err := cfg.ensureMigrations(); err != nil {
+		return nil, err
 	}
 	return &Instance{
 		Conn:     conn,
-		Migrator: m,
+		Migrator: cfg.migrator,
 	}, nil
 }

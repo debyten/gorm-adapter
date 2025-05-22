@@ -1,9 +1,11 @@
 package gormadapter
 
 import (
+	"errors"
 	"fmt"
-	"github.com/debyten/database"
 	"github.com/debyten/database/dbconf"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/ic-it/retrygo"
 	"io/fs"
 	"time"
@@ -45,17 +47,27 @@ type Configuration struct {
 	provider ConnProvider
 	// connectRetryPolicy defines how connection attempts should be retried on failure
 	connectRetryPolicy retrygo.RetryPolicy
-	// migrateDriver defines the migration driver used for applying database schema changes (optional).
-	migrateDriver database.MigrateDriver
-	// migrationsFS is a filesystem interface used to locate and access database migration files (optional).
-	migrationsFS fs.FS
-	idGenerator  func()
+	// migrator manages database migrations using the `migrate.Migrate` library. It can be nil if migrations are not configured.
+	migrator *migrate.Migrate
+	// execMigrations determines whether database migrations should be executed during the application's initialization.
+	execMigrations bool
+	idGenerator    func()
 }
 
-// SetMigrations configures the migration driver and filesystem for database migrations
-func (c *Configuration) SetMigrations(driver database.MigrateDriver, migrations fs.FS) *Configuration {
-	c.migrateDriver = driver
-	c.migrationsFS = migrations
+// MustSetMigrations configures the migration driver and filesystem for database migrations.
+//
+// Panics if an error occurs
+func (c *Configuration) MustSetMigrations(migrations fs.FS, execMigrations bool) *Configuration {
+	c.execMigrations = execMigrations
+	srcDriver, err := iofs.New(migrations, c.dataSource.GetUpgradePath())
+	if err != nil {
+		panic(err)
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", srcDriver, c.dataSource.ConnURL())
+	if err != nil {
+		panic(err)
+	}
+	c.migrator = m
 	return c
 }
 
@@ -75,9 +87,29 @@ func (c *Configuration) validate() error {
 	if c.connectRetryPolicy == nil {
 		return fmt.Errorf("connect retry policy is required")
 	}
-	if (c.migrateDriver == nil) != (c.migrationsFS == nil) {
-		return fmt.Errorf("both migrate driver and migrations filesystem must be either set or nil")
-	}
-
 	return nil
+}
+
+// ensureMigrations performs database migrations if they are configured and enabled.
+// It returns:
+//   - nil if migrations are disabled (execMigrations = false)
+//   - nil if migrations are successfully applied
+//   - nil if no migration changes were needed (migrate.ErrNoChange)
+//   - error if migrations are enabled but not configured
+//   - error if migrations fail for any other reason
+func (c *Configuration) ensureMigrations() error {
+	if !c.execMigrations {
+		return nil
+	}
+	if c.migrator == nil {
+		return fmt.Errorf("migrations are not configured")
+	}
+	err := c.migrator.Up()
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, migrate.ErrNoChange) {
+		return nil
+	}
+	return err
 }
