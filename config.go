@@ -63,7 +63,7 @@ func (c *Configuration) MustSetMigrations(migrations fs.FS, execMigrations bool)
 	if err != nil {
 		panic(err)
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", srcDriver, c.dataSource.ConnURL())
+	m, err := migrate.NewWithSourceInstance("iofs", srcDriver, c.dataSource.ConnURLWithPrefix())
 	if err != nil {
 		panic(err)
 	}
