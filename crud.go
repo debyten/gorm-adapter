@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/debyten/apierr"
 	"github.com/debyten/database"
-	"github.com/gobeam/stringy"
 	"gorm.io/gorm"
 )
 
 var (
-	isOnlyCharacters     = regexp.MustCompile("^[a-zA-Z0-9-_]+$")
+	isSafeIdentifier     = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 	errForbiddenProperty = apierr.NotAcceptable.Problem("forbidden property")
 )
 
@@ -41,7 +39,7 @@ type crud[T any, ID comparable] struct {
 func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...map[string]any) ([]T, error) {
 	var out []T
 	mConn := c.Conn(ctx).Offset(offset).Limit(size)
-	if q, args, ok := queryFromMap(query); ok {
+	if q, args, ok := queryFromMap(mConn, query); ok {
 		mConn = mConn.Where(q, args...)
 	}
 	err := mConn.Find(&out).Error
@@ -79,28 +77,11 @@ func (c *crud[T, ID]) Update(ctx context.Context, entity *T) error {
 	return c.Conn(ctx).Save(entity).Error
 }
 
-func queryFromMap(query []map[string]any) (q string, args []any, ok bool) {
-	if query == nil || len(query) != 1 {
-		ok = false
-		return
-	}
-	queries := make([]string, 0)
-	args = make([]any, 0)
-	for k, v := range query[0] {
-		q := stringy.New(k).SnakeCase().Get()
-		queries = append(queries, fmt.Sprintf("%s = ?", q))
-		args = append(args, v)
-	}
-	q = strings.Join(queries, " AND ")
-	ok = true
-	return
-}
-
 func (c *crud[T, ID]) Count(ctx context.Context, query ...map[string]any) (int64, error) {
 	var entity T
 	var count int64
 	mConn := c.Conn(ctx).Model(&entity)
-	if q, args, ok := queryFromMap(query); ok {
+	if q, args, ok := queryFromMap(mConn, query); ok {
 		mConn = mConn.Where(q, args...)
 	}
 	err := mConn.Count(&count).Error
@@ -191,7 +172,7 @@ func (c *crud[T, ID]) MustExistByIDAndCreatedBy(ctx context.Context, id ID, crea
 
 func (c *crud[T, ID]) ExistsByProperty(ctx context.Context, propertyValue any, property string) (bool, error) {
 	var entity T
-	if !isOnlyCharacters.MatchString(property) {
+	if !isSafeIdentifier.MatchString(property) {
 		return false, errForbiddenProperty
 	}
 	where := fmt.Sprintf("%s = ?", property)
