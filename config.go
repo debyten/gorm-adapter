@@ -3,12 +3,13 @@ package gormadapter
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"time"
+
 	"github.com/debyten/database/dbconf"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/ic-it/retrygo"
-	"io/fs"
-	"time"
 )
 
 // maxRetries defines the maximum number of connection retry attempts

@@ -2,17 +2,11 @@ package gormadapter
 
 import (
 	"context"
-	"fmt"
-	"regexp"
 
 	"github.com/debyten/apierr"
 	"github.com/debyten/database"
+	"github.com/debyten/gorm-adapter/clause"
 	"gorm.io/gorm"
-)
-
-var (
-	isSafeIdentifier     = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`)
-	errForbiddenProperty = apierr.NotAcceptable.Problem("forbidden property")
 )
 
 type Crud[T any, ID comparable] interface {
@@ -36,10 +30,10 @@ type crud[T any, ID comparable] struct {
 	database.Provider[*gorm.DB]
 }
 
-func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...map[string]any) ([]T, error) {
+func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...database.QueryClauses) ([]T, error) {
 	var out []T
 	mConn := c.Conn(ctx).Offset(offset).Limit(size)
-	if q, args, ok := queryFromMap(mConn, query); ok {
+	if q, args, ok := clause.Build(mConn, query); ok {
 		mConn = mConn.Where(q, args...)
 	}
 	err := mConn.Find(&out).Error
@@ -65,33 +59,18 @@ func (c *crud[T, ID]) SaveMany(ctx context.Context, entity *[]T) error {
 	return c.Conn(ctx).Save(entity).Error
 }
 
-func (c *crud[T, ID]) Delete(ctx context.Context, entity *T) error {
+func (c *crud[T, ID]) Delete(ctx context.Context, entity *T, query ...database.QueryClauses) error {
 	return c.Conn(ctx).Delete(entity).Error
-}
-func (c *crud[T, ID]) DeleteByIDs(ctx context.Context, ids []ID) error {
-	var entity T
-	return c.Conn(ctx).Delete(entity, "id in ?", ids).Error
 }
 
 func (c *crud[T, ID]) Update(ctx context.Context, entity *T) error {
 	return c.Conn(ctx).Save(entity).Error
 }
 
-func (c *crud[T, ID]) Count(ctx context.Context, query ...map[string]any) (int64, error) {
-	var entity T
+func (c *crud[T, ID]) Count(ctx context.Context, query ...database.QueryClauses) (int64, error) {
 	var count int64
-	mConn := c.Conn(ctx).Model(&entity)
-	if q, args, ok := queryFromMap(mConn, query); ok {
-		mConn = mConn.Where(q, args...)
-	}
+	mConn := c.stmt(ctx, query...)
 	err := mConn.Count(&count).Error
-	return count, err
-}
-
-func (c *crud[T, ID]) CountByIDs(ctx context.Context, ids []ID) (int64, error) {
-	var entity T
-	var count int64
-	err := c.Conn(ctx).Model(&entity).Where("id in ?", ids).Count(&count).Error
 	return count, err
 }
 
@@ -104,44 +83,30 @@ func (c *crud[T, ID]) FindAll(ctx context.Context) ([]T, error) {
 }
 
 func (c *crud[T, ID]) FindByID(ctx context.Context, id ID) (*T, error) {
+	return c.FindOneBy(ctx, map[string]database.ConditionArg{"id": clause.Eq(id)})
+}
+
+func (c *crud[T, ID]) FindOneBy(ctx context.Context, query ...database.QueryClauses) (*T, error) {
 	var entity T
-	if err := c.Conn(ctx).First(&entity, "id = ?", id).Error; err != nil {
+	if err := c.stmt(ctx, query...).First(&entity).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (c *crud[T, ID]) FindByIDs(ctx context.Context, id []ID) ([]T, error) {
+func (c *crud[T, ID]) FindBy(ctx context.Context, query ...database.QueryClauses) ([]T, error) {
 	var entities []T
-	if err := c.Conn(ctx).Find(&entities, "id IN ?", id).Error; err != nil {
+	if err := c.stmt(ctx, query...).Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
-}
-
-func (c *crud[T, ID]) FindByCreatedBy(ctx context.Context, createdBy string) ([]T, error) {
-	var entities []T
-	if err := c.Conn(ctx).Find(&entities, "created_by = ?", createdBy).Error; err != nil {
-		return nil, err
-	}
-	return entities, nil
-}
-
-func (c *crud[T, ID]) FindByIDAndCreatedBy(ctx context.Context, id ID, createdBy string) (*T, error) {
-	var entity T
-	if err := c.Conn(ctx).First(&entity, "id = ? AND created_by = ?", id, createdBy).Error; err != nil {
-		return nil, err
-	}
-	return &entity, nil
 }
 
 func (c *crud[T, ID]) ExistsByID(ctx context.Context, id ID) (bool, error) {
-	return c.ExistsByProperty(ctx, id, "id")
+	return c.ExistsBy(ctx, map[string]database.ConditionArg{"id": clause.Eq(id)})
 }
-func (c *crud[T, ID]) ExistsByIDAndCreatedBy(ctx context.Context, id ID, createdBy string) (bool, error) {
-	var entity T
-	var count int64
-	err := c.Conn(ctx).Model(entity).Where("id = ? AND created_by = ?", id, createdBy).Count(&count).Error
+func (c *crud[T, ID]) ExistsBy(ctx context.Context, query ...database.QueryClauses) (bool, error) {
+	count, err := c.Count(ctx, query...)
 	if err != nil {
 		return false, err
 	}
@@ -159,8 +124,8 @@ func (c *crud[T, ID]) MustExistByID(ctx context.Context, id ID) error {
 	return apierr.NotFound.Problem("entity doesn't exists")
 }
 
-func (c *crud[T, ID]) MustExistByIDAndCreatedBy(ctx context.Context, id ID, createdBy string) error {
-	exists, err := c.ExistsByIDAndCreatedBy(ctx, id, createdBy)
+func (c *crud[T, ID]) MustExistBy(ctx context.Context, query ...database.QueryClauses) error {
+	exists, err := c.ExistsBy(ctx, query...)
 	if err != nil {
 		return err
 	}
@@ -170,25 +135,11 @@ func (c *crud[T, ID]) MustExistByIDAndCreatedBy(ctx context.Context, id ID, crea
 	return apierr.NotFound.Problem("entity doesn't exists")
 }
 
-func (c *crud[T, ID]) ExistsByProperty(ctx context.Context, propertyValue any, property string) (bool, error) {
-	var entity T
-	if !isSafeIdentifier.MatchString(property) {
-		return false, errForbiddenProperty
+func (c *crud[T, ID]) stmt(ctx context.Context, query ...database.QueryClauses) *gorm.DB {
+	var model T
+	mConn := c.Conn(ctx).Model(&model)
+	if q, args, ok := clause.Build(mConn, query); ok {
+		mConn = mConn.Where(q, args...)
 	}
-	where := fmt.Sprintf("%s = ?", property)
-	var count int64
-	err := c.Conn(ctx).Model(entity).Where(where, propertyValue).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count == 1, nil
-}
-
-func (c *crud[T, ID]) QueryMany(ctx context.Context, query ...any) ([]T, error) {
-	var out []T
-	err := c.Conn(ctx).Find(&out, query...).Error
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	return mConn
 }

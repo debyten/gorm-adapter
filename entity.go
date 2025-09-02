@@ -49,7 +49,7 @@ func (i *Entity[V]) BeforeCreate(tx *gorm.DB) error {
 	case int, int32, int64, uint, uint32, uint64:
 		isEmpty = v == 0
 	default:
-		return fmt.Errorf("tipo ID non supportato")
+		return fmt.Errorf("unsupported id")
 	}
 
 	if !isEmpty {
@@ -58,7 +58,7 @@ func (i *Entity[V]) BeforeCreate(tx *gorm.DB) error {
 	}
 	generator, ok := GetIDGenerator[V]()
 	if !ok {
-		return ErrIDGeneratorNotSet
+		return nil // skip, maybe autoincrement
 	}
 	id, err := generator()
 	if err != nil {

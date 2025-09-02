@@ -1,9 +1,10 @@
 package gormadapter
 
 import (
-	"github.com/google/uuid"
 	"reflect"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 // RegisterDefaultIDGenerator registers a default UUID-based ID generator for string type IDs.
@@ -38,6 +39,9 @@ var generators sync.Map
 
 // RegisterIDGenerator registers a generator for a specific type
 func RegisterIDGenerator[V any](generator IDGeneratorRegistry[V]) {
+	if generator == nil {
+		return
+	}
 	typeOf := reflect.TypeOf((*V)(nil)).Elem()
 	generators.Store(typeOf, generator)
 }

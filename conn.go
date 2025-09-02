@@ -2,6 +2,7 @@ package gormadapter
 
 import (
 	"context"
+
 	"github.com/debyten/database"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/source/file" // needed for file migration data source
