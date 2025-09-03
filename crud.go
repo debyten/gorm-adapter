@@ -5,16 +5,18 @@ import (
 
 	"github.com/debyten/apierr"
 	"github.com/debyten/database"
-	"github.com/debyten/gorm-adapter/clause"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+var ErrEmptyQuery = apierr.BadRequest.Problem("empty query")
 
 type Crud[T any, ID comparable] interface {
 	Conn(ctx ...context.Context) *gorm.DB
 	database.Crud[T, ID]
 }
 
-func NewCrud[T any](db database.Provider[*gorm.DB], placeHolder T) Crud[T, string] {
+func NewCrud[T any](db database.Provider[*gorm.DB], _ T) Crud[T, string] {
 	return &crud[T, string]{
 		Provider: db,
 	}
@@ -30,24 +32,16 @@ type crud[T any, ID comparable] struct {
 	database.Provider[*gorm.DB]
 }
 
-func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...database.QueryClauses) ([]T, error) {
+func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...any) ([]T, error) {
 	var out []T
-	mConn := c.Conn(ctx).Offset(offset).Limit(size)
-	if q, args, ok := clause.Build(mConn, query); ok {
-		mConn = mConn.Where(q, args...)
-	}
-	err := mConn.Find(&out).Error
+	err := c.stmt(ctx, query...).Offset(offset).Limit(size).Find(&out).Error
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *crud[T, ID]) Create(ctx context.Context, entity *T) error {
-	return c.Conn(ctx).Create(entity).Error
-}
-
-func (c *crud[T, ID]) CreateMany(ctx context.Context, entity *[]T) error {
+func (c *crud[T, ID]) Create(ctx context.Context, entity ...*T) error {
 	return c.Conn(ctx).Create(entity).Error
 }
 
@@ -59,18 +53,22 @@ func (c *crud[T, ID]) SaveMany(ctx context.Context, entity *[]T) error {
 	return c.Conn(ctx).Save(entity).Error
 }
 
-func (c *crud[T, ID]) Delete(ctx context.Context, entity *T, query ...database.QueryClauses) error {
-	return c.Conn(ctx).Delete(entity).Error
+func (c *crud[T, ID]) Delete(ctx context.Context, query ...any) error {
+	conn, ok := c.buildStatement(ctx, query...)
+	if !ok {
+		return ErrEmptyQuery
+	}
+	var entity T
+	return conn.Delete(&entity).Error
 }
 
 func (c *crud[T, ID]) Update(ctx context.Context, entity *T) error {
 	return c.Conn(ctx).Save(entity).Error
 }
 
-func (c *crud[T, ID]) Count(ctx context.Context, query ...database.QueryClauses) (int64, error) {
+func (c *crud[T, ID]) Count(ctx context.Context, query ...any) (int64, error) {
 	var count int64
-	mConn := c.stmt(ctx, query...)
-	err := mConn.Count(&count).Error
+	err := c.stmt(ctx, query...).Count(&count).Error
 	return count, err
 }
 
@@ -83,29 +81,45 @@ func (c *crud[T, ID]) FindAll(ctx context.Context) ([]T, error) {
 }
 
 func (c *crud[T, ID]) FindByID(ctx context.Context, id ID) (*T, error) {
-	return c.FindOneBy(ctx, clause.Eq("id", id))
-}
-
-func (c *crud[T, ID]) FindOneBy(ctx context.Context, query ...database.QueryClauses) (*T, error) {
 	var entity T
-	if err := c.stmt(ctx, query...).First(&entity).Error; err != nil {
+	err := c.Conn(ctx).First(&entity, id).Error
+	if err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (c *crud[T, ID]) FindBy(ctx context.Context, query ...database.QueryClauses) ([]T, error) {
+func (c *crud[T, ID]) FindOneBy(ctx context.Context, query ...any) (*T, error) {
+	conn, ok := c.buildStatement(ctx, query...)
+	if !ok {
+		return nil, ErrEmptyQuery
+	}
+	var entity T
+	if err := conn.First(&entity).Error; err != nil {
+		return nil, err
+	}
+	return &entity, nil
+}
+
+func (c *crud[T, ID]) FindBy(ctx context.Context, query ...any) ([]T, error) {
+	conn, ok := c.buildStatement(ctx, query...)
+	if !ok {
+		return nil, ErrEmptyQuery
+	}
 	var entities []T
-	if err := c.stmt(ctx, query...).Find(&entities).Error; err != nil {
+	if err := conn.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
 func (c *crud[T, ID]) ExistsByID(ctx context.Context, id ID) (bool, error) {
-	return c.ExistsBy(ctx, clause.Eq("id", id))
+	return c.ExistsBy(ctx, clause.Eq{Column: "id", Value: id})
 }
-func (c *crud[T, ID]) ExistsBy(ctx context.Context, query ...database.QueryClauses) (bool, error) {
+func (c *crud[T, ID]) ExistsBy(ctx context.Context, query ...any) (bool, error) {
+	if len(query) == 0 {
+		return false, ErrEmptyQuery
+	}
 	count, err := c.Count(ctx, query...)
 	if err != nil {
 		return false, err
@@ -124,7 +138,7 @@ func (c *crud[T, ID]) MustExistByID(ctx context.Context, id ID) error {
 	return apierr.NotFound.Problem("entity doesn't exists")
 }
 
-func (c *crud[T, ID]) MustExistBy(ctx context.Context, query ...database.QueryClauses) error {
+func (c *crud[T, ID]) MustExistBy(ctx context.Context, query ...any) error {
 	exists, err := c.ExistsBy(ctx, query...)
 	if err != nil {
 		return err
@@ -135,11 +149,26 @@ func (c *crud[T, ID]) MustExistBy(ctx context.Context, query ...database.QueryCl
 	return apierr.NotFound.Problem("entity doesn't exists")
 }
 
-func (c *crud[T, ID]) stmt(ctx context.Context, query ...database.QueryClauses) *gorm.DB {
-	var model T
-	mConn := c.Conn(ctx).Model(&model)
-	if q, args, ok := clause.Build(mConn, query); ok {
-		mConn = mConn.Where(q, args...)
+// buildStatement builds a gorm.DB statement from the given query. It returns the statement and a boolean indicating whether the query is empty.
+// If the query is non-empty, true is returned.
+func (c *crud[T, ID]) buildStatement(ctx context.Context, query ...any) (*gorm.DB, bool) {
+	if len(query) == 0 {
+		return c.Conn(ctx), false
 	}
-	return mConn
+	expressions := make([]clause.Expression, 0, len(query))
+	for _, q := range query {
+		if m, ok := q.(clause.Expression); ok {
+			expressions = append(expressions, m)
+		}
+	}
+	if len(expressions) == 0 {
+		return c.Conn(ctx), false
+	}
+	var model T
+	return c.Conn(ctx).Model(&model).Clauses(expressions...), true
+}
+
+func (c *crud[T, ID]) stmt(ctx context.Context, query ...any) *gorm.DB {
+	q, _ := c.buildStatement(ctx, query...)
+	return q
 }
