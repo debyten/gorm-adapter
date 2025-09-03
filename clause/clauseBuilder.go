@@ -36,61 +36,61 @@ func (b *Builder) Build() []database.QueryClauses {
 
 // Eq adds an equality condition for the given column.
 func (b *Builder) Eq(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Eq(value)})
+	b.clauses = append(b.clauses, Eq(column, value))
 	return b
 }
 
 // Neq adds a not-equal condition for the given column.
 func (b *Builder) Neq(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Neq(value)})
+	b.clauses = append(b.clauses, Neq(column, value))
 	return b
 }
 
 // In adds an IN condition for the given column.
 func (b *Builder) In(column string, values ...any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: In(values...)})
+	b.clauses = append(b.clauses, In(column, values...))
 	return b
 }
 
 // Like adds a LIKE condition for the given column.
 func (b *Builder) Like(column string, value string) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Like(value)})
+	b.clauses = append(b.clauses, Like(column, value))
 	return b
 }
 
 // NotLike adds a NOT LIKE condition for the given column.
 func (b *Builder) NotLike(column string, value string) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: NotLike(value)})
+	b.clauses = append(b.clauses, NotLike(column, value))
 	return b
 }
 
 // Between adds a BETWEEN condition for the given column.
 func (b *Builder) Between(column string, min, max any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Between(min, max)})
+	b.clauses = append(b.clauses, Between(column, min, max))
 	return b
 }
 
 // Gt adds a greater than condition for the given column.
 func (b *Builder) Gt(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Gt(value)})
+	b.clauses = append(b.clauses, Gt(column, value))
 	return b
 }
 
 // Gte adds a greater than or equal condition for the given column.
 func (b *Builder) Gte(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Gte(value)})
+	b.clauses = append(b.clauses, Gte(column, value))
 	return b
 }
 
 // Lt adds a less than condition for the given column.
 func (b *Builder) Lt(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Lt(value)})
+	b.clauses = append(b.clauses, Lt(column, value))
 	return b
 }
 
 // Lte adds a less than or equal condition for the given column.
 func (b *Builder) Lte(column string, value any) *Builder {
-	b.clauses = append(b.clauses, database.QueryClauses{column: Lte(value)})
+	b.clauses = append(b.clauses, Lte(column, value))
 	return b
 }
 

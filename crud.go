@@ -83,7 +83,7 @@ func (c *crud[T, ID]) FindAll(ctx context.Context) ([]T, error) {
 }
 
 func (c *crud[T, ID]) FindByID(ctx context.Context, id ID) (*T, error) {
-	return c.FindOneBy(ctx, map[string]database.ConditionArg{"id": clause.Eq(id)})
+	return c.FindOneBy(ctx, clause.Eq("id", id))
 }
 
 func (c *crud[T, ID]) FindOneBy(ctx context.Context, query ...database.QueryClauses) (*T, error) {
@@ -103,7 +103,7 @@ func (c *crud[T, ID]) FindBy(ctx context.Context, query ...database.QueryClauses
 }
 
 func (c *crud[T, ID]) ExistsByID(ctx context.Context, id ID) (bool, error) {
-	return c.ExistsBy(ctx, map[string]database.ConditionArg{"id": clause.Eq(id)})
+	return c.ExistsBy(ctx, clause.Eq("id", id))
 }
 func (c *crud[T, ID]) ExistsBy(ctx context.Context, query ...database.QueryClauses) (bool, error) {
 	count, err := c.Count(ctx, query...)
