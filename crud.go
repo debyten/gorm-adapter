@@ -45,6 +45,10 @@ func (c *crud[T, ID]) Create(ctx context.Context, entity ...*T) error {
 	return c.Conn(ctx).Create(entity).Error
 }
 
+func (c *crud[T, ID]) CreateMany(ctx context.Context, entity *[]T) error {
+	return c.Conn(ctx).Create(entity).Error
+}
+
 func (c *crud[T, ID]) Save(ctx context.Context, entity *T) error {
 	return c.Conn(ctx).Save(entity).Error
 }

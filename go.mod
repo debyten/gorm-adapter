@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/debyten/apierr v0.2.2
-	github.com/debyten/database v0.0.3
+	github.com/debyten/database v0.0.31
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/google/uuid v1.6.0
 	github.com/ic-it/retrygo v0.3.2
