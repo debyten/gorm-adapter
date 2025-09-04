@@ -77,12 +77,7 @@ func (c *crud[T, ID]) Count(ctx context.Context, query ...any) (int64, error) {
 }
 
 func (c *crud[T, ID]) FindByID(ctx context.Context, id ID) (*T, error) {
-	var entity T
-	err := c.Conn(ctx).First(&entity, id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &entity, nil
+	return c.FindOneBy(ctx, clause.Eq{Column: "id", Value: id})
 }
 
 func (c *crud[T, ID]) FindOneBy(ctx context.Context, query ...any) (*T, error) {
