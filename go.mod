@@ -4,12 +4,12 @@ go 1.25.0
 
 require (
 	github.com/debyten/apierr v0.2.2
-	github.com/debyten/database v0.0.31
+	github.com/debyten/database v0.0.32
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/google/uuid v1.6.0
 	github.com/ic-it/retrygo v0.3.2
 	github.com/kostyay/gorm-opentelemetry v1.1.3
-	gorm.io/gorm v1.30.2
+	gorm.io/gorm v1.30.3
 )
 
 require (

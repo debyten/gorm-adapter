@@ -41,7 +41,7 @@ func (c *crud[T, ID]) FindPage(ctx context.Context, offset, size int, query ...a
 	return out, nil
 }
 
-func (c *crud[T, ID]) Create(ctx context.Context, entity ...*T) error {
+func (c *crud[T, ID]) Create(ctx context.Context, entity *T) error {
 	return c.Conn(ctx).Create(entity).Error
 }
 
